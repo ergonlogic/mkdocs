@@ -32,6 +32,9 @@ DEFAULT_CONFIG = {
     # True generates nicer URLs, but False is useful if browsing the output on a filesystem.
     'use_directory_urls': True,
 
+    # Whether to use new style menus. See: https://github.com/mkdocs/mkdocs/issues/6
+    'use_new_menu': False,
+
     # Specify a link to the project source repo to be included
     # in the documentation pages.
     'repo_url': None,

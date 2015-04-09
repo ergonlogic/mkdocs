@@ -27,13 +27,14 @@ def filename_to_title(filename):
 
 
 class SiteNavigation(object):
-    def __init__(self, pages_config, use_directory_urls=True):
+    def __init__(self, pages_config, use_directory_urls=True, use_new_menu=False):
         self.url_context = URLContext()
         self.file_context = FileContext()
         self.nav_items, self.pages = \
-            _generate_site_navigation(pages_config, self.url_context, use_directory_urls)
+            _generate_site_navigation(pages_config, self.url_context, use_directory_urls, use_new_menu)
         self.homepage = self.pages[0] if self.pages else None
         self.use_directory_urls = use_directory_urls
+        self.use_new_menu = use_new_menu
 
     def __str__(self):
         return str(self.homepage) + ''.join([str(item) for item in self])
@@ -185,7 +186,81 @@ class Header(object):
         return ret
 
 
-def _generate_site_navigation(pages_config, url_context, use_directory_urls=True):
+
+def _generate_site_navigation(pages_config, url_context, use_directory_urls=True, use_new_menu=False):
+    if use_new_menu:
+        return _generate_site_navigation_new(pages_config, url_context, use_directory_urls, use_new_menu)
+    else:
+        return _generate_site_navigation_old(pages_config, url_context, use_directory_urls)
+
+def _normalize_pages_config(pages_config):
+    for index, config_line in enumerate(pages_config):
+        pages_config[index] = _normalize_config_line(config_line)
+    return pages_config
+
+def _normalize_config_line(config_line):
+    if isinstance(config_line, str):
+        return { _generate_title(config_line): config_line }
+    return config_line
+
+def _generate_title(config_line):
+    filename = config_line.split('/')[0]
+    return filename_to_title(filename);
+
+def _generate_site_navigation_new(pages_config, url_context, use_directory_urls=True, use_new_menu=True):
+    """
+    Returns a list of Page and Header instances that represent the
+    top level site navigation.
+    """
+    pages_config = _normalize_pages_config(pages_config)
+    nav_items = []
+    pages = []
+    previous = None
+
+    for config_line in pages_config:
+        if isinstance(config_line, dict):
+            for key, value in config_line.iteritems():
+                title, child_title = key, key
+                child_title = key
+                title = None
+                path = value
+        else:
+            msg = (
+                "Line in 'page' config contained %d items.  "
+                "Expected 1, 2 or 3 strings." % len(config_line)
+            )
+            assert False, msg
+
+        url = utils.get_url_path(path, use_directory_urls)
+
+        if not child_title:
+            # New top level page.
+            page = Page(title=title, url=url, path=path, url_context=url_context)
+            if not utils.is_homepage(path):
+                nav_items.append(page)
+        elif not nav_items or (nav_items[-1].title != title):
+            # New second level page.
+            page = Page(title=child_title, url=url, path=path, url_context=url_context)
+            header = Header(title=title, children=[page])
+            nav_items.append(header)
+            page.ancestors = [header]
+        else:
+            # Additional second level page.
+            page = Page(title=child_title, url=url, path=path, url_context=url_context)
+            header = nav_items[-1]
+            header.children.append(page)
+            page.ancestors = [header]
+
+        # Add in previous and next information.
+        if previous:
+            page.previous_page = previous
+            previous.next_page = page
+        previous = page
+
+        pages.append(page)
+    return (nav_items, pages)
+
+def _generate_site_navigation_old(pages_config, url_context, use_directory_urls=True):
     """
     Returns a list of Page and Header instances that represent the
     top level site navigation.
@@ -243,5 +318,4 @@ def _generate_site_navigation(pages_config, url_context, use_directory_urls=True
         previous = page
 
         pages.append(page)
-
     return (nav_items, pages)
